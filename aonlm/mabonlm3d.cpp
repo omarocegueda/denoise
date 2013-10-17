@@ -535,9 +535,9 @@ for(i=0;i<cols;i+=2)
     }
 }
 	#ifdef _WIN32
-       _endthreadex(0);    
+       //_endthreadex(0);    
     #else
-       pthread_exit(0);    
+       //pthread_exit(0);    
     #endif
 
 return 0;
@@ -738,12 +738,12 @@ for (i=0; i<Nthreads; i++)
     ThreadArgs[i].radioB=v;
     ThreadArgs[i].radioS=f;  
     	
-    ThreadList[i] = (HANDLE)_beginthreadex( NULL, 0, &ThreadFunc, &ThreadArgs[i] , 0, NULL );
+    //ThreadList[i] = (HANDLE)_beginthreadex( NULL, 0, &ThreadFunc, &ThreadArgs[i] , 0, NULL );
         
 }
-    
-for (i=0; i<Nthreads; i++) { WaitForSingleObject(ThreadList[i], INFINITE); }
-for (i=0; i<Nthreads; i++) { CloseHandle( ThreadList[i] ); }
+ThreadFunc(&ThreadArgs[0]);
+//for (i=0; i<Nthreads; i++) { WaitForSingleObject(ThreadList[i], INFINITE); }
+//for (i=0; i<Nthreads; i++) { CloseHandle( ThreadList[i] ); }
 
 #else
 
@@ -770,8 +770,8 @@ for (i=0; i<Nthreads; i++)
     ThreadArgs[i].radioB=v;
     ThreadArgs[i].radioS=f;      	        
 }
-
-for (i=0; i<Nthreads; i++)
+ThreadFunc(&ThreadArgs[0]);
+/*for (i=0; i<Nthreads; i++)
 {
     if(pthread_create(&ThreadList[i], NULL, ThreadFunc,&ThreadArgs[i]))
     {
@@ -783,7 +783,7 @@ for (i=0; i<Nthreads; i++)
 for (i=0; i<Nthreads; i++)
 {
   pthread_join(ThreadList[i],NULL);
-}
+}*/
 
 #endif
 
@@ -792,7 +792,16 @@ free(ThreadList);
 
 if(rician)
 {
-  r=5;  
+  r=5;
+  if(dims[0]<r){
+	r=dims[0];
+  }
+  if(dims[1]<r){
+	r=dims[1];
+  }
+  if(dims[2]<r){
+	r=dims[2];
+  }
   Regularize(bias,variances,r,dims[0],dims[1],dims[2]);
   for(i=0;i<dims[0]*dims[1]*dims[2];i++)
   {
