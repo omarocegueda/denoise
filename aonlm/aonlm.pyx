@@ -4,6 +4,8 @@ import numpy as np
 import math
 cdef extern from "mabonlm3d.h":
     void mabonlm3d_c(double *ima, int *dims, int v, int f, int r, double *fima)
+    void Average_block(double *ima,int x,int y,int z,int neighborhoodsize,double *average, double weight, int sx,int sy,int sz, int rician)
+    void Value_block(double *Estimate, double *Label,int x,int y,int z,int neighborhoodsize,double *average, double global_sum, int sx,int sy,int sz)
 
 cdef inline int _int_max(int a, int b): return a if a >= b else b
 cdef inline int _int_min(int a, int b): return a if a <= b else b
@@ -57,11 +59,10 @@ cdef double Epsi(double snr):
         val=1    
     return val
 
-cdef _average_block(double[:,:,:] ima, int x, int y, int z, 
+cpdef _average_block(double[:,:,:] ima, int x, int y, int z, 
                    double[:,:,:] average, double weight):
     cdef int a, b, c, x_pos, y_pos, z_pos
     cdef int is_outside
-    cdef int count = 0
     cdef int neighborhoodsize=average.shape[0]//2
     for c in range(average.shape[2]):
         for b in range(average.shape[1]):
@@ -374,20 +375,21 @@ def _local_variance(double[:,:,:] ima, double mean, int x, int y, int z):
                     ss+=(ima[px,py,pz]-mean)*(ima[px,py,pz]-mean)
                     cnt+=1
     return ss/(cnt-1)
-
+    
 def mabonlm3d(double[:,:,:] ima, int v, int f, int rician):
+    cdef int USE_CPP_IMPLEMENTATION=1
     cdef double totalweight,t1,t1i,t2,d,w,distanciaminima
     cdef int i,j,k,rc,ii,jj,kk,ni,nj,nk
     cdef int cols=ima.shape[0]
     cdef int rows=ima.shape[1]
     cdef int slices=ima.shape[2]
-    cdef double[:,:,:] average=np.zeros((2*f+1,2*f+1,2*f+1), dtype=np.float64)
-    cdef double[:,:,:] fima=np.zeros_like(ima)
-    cdef double[:,:,:] means=np.zeros_like(ima)
-    cdef double[:,:,:] variances=np.zeros_like(ima)
-    cdef double[:,:,:] Estimate=np.zeros_like(ima)
-    cdef double[:,:,:] Label=np.zeros_like(ima)
-    cdef double[:,:,:] bias=np.zeros_like(ima)
+    cdef double[:,:,:] average=np.zeros((2*f+1,2*f+1,2*f+1), dtype=np.float64, order='F')
+    cdef double[:,:,:] fima=np.zeros_like(ima, order='F')
+    cdef double[:,:,:] means=np.zeros_like(ima, order='F')
+    cdef double[:,:,:] variances=np.zeros_like(ima, order='F')
+    cdef double[:,:,:] Estimate=np.zeros_like(ima, order='F')
+    cdef double[:,:,:] Label=np.zeros_like(ima, order='F')
+    cdef double[:,:,:] bias=np.zeros_like(ima, order='F')
     cdef double epsilon = 0.00001
     cdef double mu1 = 0.95
     cdef double var1 = 0.5+1e-7
@@ -411,9 +413,14 @@ def mabonlm3d(double[:,:,:] ima, int v, int f, int rician):
                 distanciaminima=100000000000000
                 if(ima[i,j,k]<=0 or means[i,j,k]<=epsilon or variances[i,j,k]<=epsilon):
                     wmax=1.0
-                    _average_block(ima, i, j, k, average, wmax)
-                    totalweight = totalweight + wmax
-                    _value_block(Estimate, Label, i, j, k, average, totalweight)
+                    if (USE_CPP_IMPLEMENTATION==0):
+                        _average_block(ima, i, j, k, average, wmax)
+                        totalweight = totalweight + wmax
+                        _value_block(Estimate, Label, i, j, k, average, totalweight)
+                    else:
+                        Average_block(&ima[0,0,0], i, j, k, average.shape[0]//2, &average[0,0,0], wmax, cols, rows, slices, rician)
+                        totalweight = totalweight + wmax
+                        Value_block(&Estimate[0,0,0], &Label[0,0,0], i, j, k, average.shape[0]//2, &average[0,0,0], totalweight, cols, rows, slices)
                 else:
                     #calculate minimum distance
                     for kk in range(-v, v+1):
@@ -471,13 +478,22 @@ def mabonlm3d(double[:,:,:] ima, int v, int f, int rician):
                                             if(w>wmax):
                                                 wmax = w
                                             if(w>0):
-                                                _average_block(ima, ni, nj, nk, average, w)
-                                                totalweight = totalweight + w
+                                                if(USE_CPP_IMPLEMENTATION==0):
+                                                    _average_block(ima, ni, nj, nk, average, w)
+                                                    totalweight = totalweight + w
+                                                else:
+                                                    Average_block(&ima[0,0,0], ni, nj, nk, average.shape[0]//2, &average[0,0,0], w, cols, rows, slices, rician)
+                                                    totalweight = totalweight + w
                     if(wmax==0.0):
-                        wmax=1.0						
-                    _average_block(ima, i, j, k, average, wmax)					
-                    totalweight = totalweight + wmax
-                    _value_block(Estimate, Label,i, j, k, average, totalweight)
+                        wmax=1.0
+                    if(USE_CPP_IMPLEMENTATION==0):
+                        _average_block(ima, i, j, k, average, wmax)					
+                        totalweight = totalweight + wmax
+                        _value_block(Estimate, Label,i, j, k, average, totalweight)
+                    else:
+                        Average_block(&ima[0,0,0], i, j, k, average.shape[0]//2, &average[0,0,0], wmax, cols, rows, slices, rician)					
+                        totalweight = totalweight + wmax
+                        Value_block(&Estimate[0,0,0], &Label[0,0,0],i, j, k, average.shape[0]//2, &average[0,0,0], totalweight, cols, rows, slices)
     ##########################################################################
     ##########################################################################
     if(rician):
@@ -606,3 +622,38 @@ def aonlm(double [:,:,:]image, int v, int f, int r):
     dims[2]=I.shape[2]
     mabonlm3d_c(&I[0,0,0], &dims[0], v, f, r, &filtered[0,0,0])
     return filtered
+
+def Average_block_cpp(double[:,:,:] X, int px, int py, int pz, double[:,:,:] average, double weight, int rician):
+    Average_block(&X[0,0,0], px, py, pz, average.shape[0]//2, &average[0,0,0], weight, X.shape[0], X.shape[1], X.shape[2], rician)
+
+
+
+#if __name__=='__main__':
+#    #_average_block(ima, i, j, k, average, wmax)
+#    #_value_block(Estimate, Label, i, j, k, average, totalweight)
+#    #Average_block(&ima[0,0,0], i, j, k, average.shape[0]//2, &average[0,0,0], wmax, cols, rows, slices)
+#    #Value_block(&Estimate[0,0,0], &Label[0,0,0], i, j, k, average.shape[0]//2, &average[0,0,0], totalweight, cols, rows, slices)
+#    #--test Average_block--
+#    
+#    #--test Value_block--
+#    sz=(5,6,7)
+#    ll=sz[0]*sz[1]*sz[2]
+#    average=np.array(np.random.uniform(0,1,27), dtype=np.float64).reshape((3,3,3))
+#    error=0
+#    variation=0
+#    for mask in range(8):
+#        px=(mask&1>0)*(sz[1]-1)
+#        py=(mask&2>0)*(sz[0]-1)
+#        pz=(mask&4>0)*(sz[2]-1)
+#        E=np.array(np.random.uniform(0,1,ll), dtype=np.float64).reshape(sz)
+#        L=2*np.array(range(ll), dtype=np.float64).reshape(sz)
+#        ornlm.Value_block_cpp(E,L, px, py, pz, average, 1, 1)
+#        #EE=np.array(range(ll), dtype=np.float64).reshape(sz)
+#        EE=E.copy()
+#        LL=2*np.array(range(ll), dtype=np.float64).reshape(sz)
+#        variation+=(E-EE).std()
+#        variation+=(L-LL).std()
+#        ornlm.Value_block_pyx(EE, LL, px, py, pz, average, 1, 1 )
+#        error+=(E-EE).std()
+#        error+=(L-LL).std()
+#    print 'Value_block error: ', error

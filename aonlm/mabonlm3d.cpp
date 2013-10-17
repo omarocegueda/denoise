@@ -61,9 +61,6 @@ typedef struct{
     int radioS;   
 }myargument;
 
-bool rician=false;
-double max;
-
 /*Returns the modified Bessel function I0(x) for any real x.*/
 double bessi0(double x)
 {
@@ -116,13 +113,12 @@ double Epsi(double snr)
 }
 
 /* Function which compute the weighted average for one block */
-void Average_block(double *ima,int x,int y,int z,int neighborhoodsize,double *average, double weight, int sx,int sy,int sz)
+void Average_block(double *ima,int x,int y,int z,int neighborhoodsize,double *average, double weight, int sx,int sy,int sz, int rician)
 {
 int x_pos,y_pos,z_pos;
 bool is_outside; 
 int a,b,c,ns,sxy,count;
 
-extern bool rician;
 
 ns=2*neighborhoodsize+1;
 sxy=sx*sy;
@@ -378,14 +374,11 @@ free(temp);
 return;
 }
 
-void* ThreadFunc( void* pArguments )
+void* ThreadFunc( void* pArguments, int rician, double globalMax )
 {
     double *bias,*Estimate,*Label,*ima,*means,*variances,*average,epsilon,mu1,var1,totalweight,wmax,t1,t1i,t2,d,w,distanciaminima;
     int rows,cols,slices,ini,fin,v,f,init,i,j,k,rc,ii,jj,kk,ni,nj,nk,Ndims;
-    
-    extern bool rician;
-    extern double max;
-    
+        
     myargument arg;
     arg=*(myargument *) pArguments;
 
@@ -443,7 +436,7 @@ for(i=0;i<cols;i+=2)
 				if (ima[nk*rc+(nj*cols)+ni]>0 && (means[nk*(rc)+(nj*cols)+ni])> epsilon && (variances[nk*rc+(nj*cols)+ni]>epsilon))
 				{				
 				  t1 = (means[k*rc+(j*cols)+i])/(means[nk*rc+(nj*cols)+ni]);  
-                  t1i= (max-means[k*(rc)+(j*cols)+i])/(max-means[nk*(rc)+(nj*cols)+ni]);  
+                  t1i= (globalMax-means[k*(rc)+(j*cols)+i])/(globalMax-means[nk*(rc)+(nj*cols)+ni]);  
 				  t2 = (variances[k*rc+(j*cols)+i])/(variances[nk*rc+(nj*cols)+ni]);
 	
 				  if( (t1>mu1 && t1<(1/mu1)) || (t1i>mu1 && t1i<(1/mu1)) && t2>var1 && t2<(1/var1))
@@ -497,7 +490,7 @@ for(i=0;i<cols;i+=2)
 					if (ima[nk*rc+(nj*cols)+ni]>0 && (means[nk*(rc)+(nj*cols)+ni])> epsilon && (variances[nk*rc+(nj*cols)+ni]>epsilon))
 					{				
 						t1 = (means[k*rc+(j*cols)+i])/(means[nk*rc+(nj*cols)+ni]);  
-                        t1i= (max-means[k*(rc)+(j*cols)+i])/(max-means[nk*(rc)+(nj*cols)+ni]);  
+                        t1i= (globalMax-means[k*(rc)+(j*cols)+i])/(globalMax-means[nk*(rc)+(nj*cols)+ni]);  
 						t2 = (variances[k*rc+(j*cols)+i])/(variances[nk*rc+(nj*cols)+ni]);
 	
 						if( (t1>mu1 && t1<(1/mu1)) || (t1i>mu1 && t1i<(1/mu1)) && t2>var1 && t2<(1/var1))
@@ -511,7 +504,7 @@ for(i=0;i<cols;i+=2)
 										
 							if(w>0)
                             {
-                               Average_block(ima,ni,nj,nk,f,average,w,cols,rows,slices);																			
+                               Average_block(ima,ni,nj,nk,f,average,w,cols,rows,slices, rician);																			
   			 			       totalweight = totalweight + w;
                             }
 						}
@@ -522,14 +515,14 @@ for(i=0;i<cols;i+=2)
 		}
 				
 		if(wmax==0.0) wmax=1.0;						
-		Average_block(ima,i,j,k,f,average,wmax,cols,rows,slices);					
+		Average_block(ima,i,j,k,f,average,wmax,cols,rows,slices, rician);					
 		totalweight = totalweight + wmax;										 
 		Value_block(Estimate,Label,i,j,k,f,average,totalweight,cols,rows,slices);				
 	}
     else 
     {           
       wmax=1.0;  
-	  Average_block(ima,i,j,k,f,average,wmax,cols,rows,slices);	
+	  Average_block(ima,i,j,k,f,average,wmax,cols,rows,slices, rician);	
       totalweight = totalweight + wmax;
  	  Value_block(Estimate,Label,i,j,k,f,average,totalweight,cols,rows,slices);
     }
@@ -554,7 +547,7 @@ double  *bias=0;
 //double *means, *variances, *Estimate, *Label;
 //mxArray *pv;
 //double SNR,h,mean,var,label,estimate;
-double SNR,mean,var,label,estimate;
+double SNR,mean,var,label,estimate,globalMax;
 //int Ndims,i,j,k,ii,jj,kk,ni,nj,nk,v,f,ndim,indice,Nthreads,ini,fin,r;
 int i,j,k,ii,jj,kk,ni,nj,nk,indice,Nthreads,ini,fin;
 //const int  *dims;
@@ -604,8 +597,8 @@ pthread_t * ThreadList;
 
 //pv = prhs[3];
 //r = (int)(mxGetScalar(pv));
-if(r>0) rician=true;
-else rician=false;
+//if(r>0) rician=true;
+//else rician=false;
 
 //Ndims = pow((2*f+1),ndim);
 
@@ -618,7 +611,7 @@ else rician=false;
 //MxLabel = mxCreateNumericArray(ndim,dims,mxDOUBLE_CLASS, mxREAL);
 
 //if(rician) MxBias = mxCreateNumericArray(ndim,dims,mxDOUBLE_CLASS, mxREAL);    
-if(rician) bias = (double*)malloc(nvox*sizeof(double));    
+if(r) bias = (double*)malloc(nvox*sizeof(double));    
 
 //average=(double*)malloc(Ndims*sizeof(double));
 
@@ -635,18 +628,18 @@ for (i = 0; i < dims[2] *dims[1] * dims[0];i++)
 	Estimate[i] = 0.0;
 	Label[i] = 0.0;
 	fima[i] = 0.0;
-    if(rician) bias[i]=0.0;
+    if(r) bias[i]=0.0;
 }
 
 
-max=0;
+globalMax=0;
 for(k=0;k<dims[2];k++)
 {
 	for(j=0;j<dims[1];j++)
 	{
 		for(i=0;i<dims[0];i++)
 		{
-            if(ima[k*(dims[0]*dims[1])+(j*dims[0])+i]>max) max=ima[k*(dims[0]*dims[1])+(j*dims[0])+i];
+            if(ima[k*(dims[0]*dims[1])+(j*dims[0])+i]>globalMax) globalMax=ima[k*(dims[0]*dims[1])+(j*dims[0])+i];
             
 			mean=0;
 			indice=0;
@@ -741,7 +734,7 @@ for (i=0; i<Nthreads; i++)
     //ThreadList[i] = (HANDLE)_beginthreadex( NULL, 0, &ThreadFunc, &ThreadArgs[i] , 0, NULL );
         
 }
-ThreadFunc(&ThreadArgs[0]);
+ThreadFunc(&ThreadArgs[0], r, globalMax);
 //for (i=0; i<Nthreads; i++) { WaitForSingleObject(ThreadList[i], INFINITE); }
 //for (i=0; i<Nthreads; i++) { CloseHandle( ThreadList[i] ); }
 
@@ -770,7 +763,7 @@ for (i=0; i<Nthreads; i++)
     ThreadArgs[i].radioB=v;
     ThreadArgs[i].radioS=f;      	        
 }
-ThreadFunc(&ThreadArgs[0]);
+ThreadFunc(&ThreadArgs[0], r, globalMax);
 /*for (i=0; i<Nthreads; i++)
 {
     if(pthread_create(&ThreadList[i], NULL, ThreadFunc,&ThreadArgs[i]))
@@ -790,7 +783,7 @@ for (i=0; i<Nthreads; i++)
 free(ThreadArgs); 
 free(ThreadList);
 
-if(rician)
+if(r)
 {
   r=5;
   if(dims[0]<r){
@@ -825,7 +818,7 @@ for(i=0;i<dims[0]*dims[1]*dims[2];i++)
 	{
 	  estimate = Estimate[i];
 	  estimate = (estimate/label);
-	  if(rician)
+	  if(r)
       {
          estimate = (estimate-bias[i])<0?0:(estimate-bias[i]);                    
          fima[i]=sqrt(estimate);
@@ -838,7 +831,7 @@ free(variances);
 free(Estimate);
 free(Label);
 free(average);
-if(rician){
+if(r){
     free(bias);
 }
 
