@@ -408,13 +408,13 @@ def mabonlm3d(double[:,:,:] image, int v, int f, int rician):
     cdef double wmax=0.0
     cdef double globalMax=0
     for k in range(slices):
-        for i in range(rows):
-            for j in range(cols):
+        for i in range(cols):
+            for j in range(rows):
                 if(globalMax<ima[i,j,k]):
                     globalMax=ima[i,j,k]
-                mm=_local_mean(ima,j,i,k)
-                means[j,i,k]=mm
-                variances[j,i,k]=_local_variance(ima, mm, j, i, k)
+                mm=_local_mean(ima,i,j,k)
+                means[i,j,k]=mm
+                variances[i,j,k]=_local_variance(ima, mm, i, j, k)
     ##########################################################################
     ##########################################################################
     for k in range(0, slices, 2):
