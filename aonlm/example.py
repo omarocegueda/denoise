@@ -1,3 +1,4 @@
+from aonlm import mabonlm3d
 from aonlm import aonlm
 import numpy as np
 import nibabel as nib
@@ -17,22 +18,27 @@ def test_filters():
     image=nib_image.get_data().astype(np.double)
     ##################
     fimau=np.zeros_like(image)
+    fimaucpp=np.zeros_like(image)
     fimao=np.zeros_like(image)
     fima=np.zeros_like(image)
-    for i in xrange(image.shape[3]):
+    #for i in xrange(image.shape[3]):
+    for i in xrange(1):
         print "Filtering volume",i+1,"/",image.shape[3]
-        fimau[:,:,:,i]=aonlm(image[:,:,:,i], 3, 1, 1)
-        diffu=abs(fimau[:,:,:,i]-matlab_filtered1[:,:,:,i])
+        fimau[:,:,:,i]=mabonlm3d(image[:,:,:,i], 3, 1, 1)
+        fimaucpp[:,:,:,i]=aonlm(image[:,:,:,i], 3, 1, 1)
+        #diffu=abs(fimaucpp[:,:,:,i]-matlab_filtered1[:,:,:,i])
+        diffu=abs(fimau[:,:,:,i]-fimaucpp[:,:,:,i])
+        #diffu=abs(fimau[:,:,:,i]-matlab_filtered1[:,:,:,i])
         diff_check=abs(fimau[:,:,:,i]-image[:,:,:,i])
         print "Maximum error [aonlm (block size= 3x3)]: ", diffu.max(),". Check: ",diff_check.max()
-        fimao[:,:,:,i]=aonlm(image[:,:,:,i], 3, 2, 1)
-        diffo=abs(fimao[:,:,:,i]-matlab_filtered2[:,:,:,i])
-        diff_check=abs(fimao[:,:,:,i]-image[:,:,:,i])
-        print "Maximum error [aonlm (block size= 5x5)]: ", diffo.max(),". Check: ",diff_check.max()
-        fima[:,:,:,i]=mixingsubband(fimau[:,:,:,i],fimao[:,:,:,i])
-        diff=abs(fima[:,:,:,i] - matlab_filtered3[:,:,:,i])
-        diff_check=abs(fima[:,:,:,i]-image[:,:,:,i])
-        print "Maximum error [mixed]: ", diff.max(),". Check: ",diff_check.max()
+#        fimao[:,:,:,i]=mabonlm3d(image[:,:,:,i], 3, 2, 1)
+#        diffo=abs(fimao[:,:,:,i]-matlab_filtered2[:,:,:,i])
+#        diff_check=abs(fimao[:,:,:,i]-image[:,:,:,i])
+#        print "Maximum error [aonlm (block size= 5x5)]: ", diffo.max(),". Check: ",diff_check.max()
+#        fima[:,:,:,i]=mixingsubband(fimau[:,:,:,i],fimao[:,:,:,i])
+#        diff=abs(fima[:,:,:,i] - matlab_filtered3[:,:,:,i])
+#        diff_check=abs(fima[:,:,:,i]-image[:,:,:,i])
+#        print "Maximum error [mixed]: ", diff.max(),". Check: ",diff_check.max()
 
 if __name__=='__main__':
     test_filters()
