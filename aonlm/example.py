@@ -21,14 +21,13 @@ def test_filters():
     fimaucpp=np.zeros_like(image)
     fimao=np.zeros_like(image)
     fima=np.zeros_like(image)
-    #for i in xrange(image.shape[3]):
-    for i in xrange(1):
+    for i in xrange(image.shape[3]):
         print "Filtering volume",i+1,"/",image.shape[3]
         fimau[:,:,:,i]=mabonlm3d(image[:,:,:,i], 3, 1, 1)
         fimaucpp[:,:,:,i]=aonlm(image[:,:,:,i], 3, 1, 1)
-        diffu=abs(fimaucpp[:,:,:,i]-matlab_filtered1[:,:,:,i])
-        #diffu=abs(fimau[:,:,:,i]-fimaucpp[:,:,:,i])
         #diffu=abs(fimau[:,:,:,i]-matlab_filtered1[:,:,:,i])
+        #diffu=abs(fimaucpp[:,:,:,i]-matlab_filtered1[:,:,:,i])
+        diffu=abs(fimau[:,:,:,i]-fimaucpp[:,:,:,i])
         diff_check=abs(fimau[:,:,:,i]-image[:,:,:,i])
         print "Maximum error [aonlm (block size= 3x3)]: ", diffu.max(),". Check: ",diff_check.max()
 #        fimao[:,:,:,i]=mabonlm3d(image[:,:,:,i], 3, 2, 1)
@@ -45,10 +44,10 @@ def testAverageBlock():
     from aonlm import _average_block
     sz=(5,6,7)
     ll=sz[0]*sz[1]*sz[2]
-    X=np.array(range(ll), dtype=np.float64, order='F').reshape(sz)
+    X=np.array(range(ll), dtype=np.float64).reshape(sz,order='F')
     #X=np.array(np.random.uniform(0,1,ll), dtype=np.float64).reshape(sz)
     error=0
-    for mask in range(1):
+    for mask in range(8):
         px=(mask&1>0)*(sz[0]-1)
         py=(mask&2>0)*(sz[1]-1)
         pz=(mask&4>0)*(sz[2]-1)
@@ -58,6 +57,64 @@ def testAverageBlock():
         Average_block_cpp(X, px, py, pz, av_import, 1, 1)
         error+=(av-av_import).std()
     print 'Average_block error: ', error
+
+def testValueBlock():
+    from aonlm import Value_block_cpp
+    from aonlm import _value_block
+    sz=(5,6,7)
+    ll=sz[0]*sz[1]*sz[2]
+    #average=np.array(np.random.uniform(0,1,27), dtype=np.float64).reshape((3,3,3), order='F')
+    average=np.array(range(27), dtype=np.float64).reshape((3,3,3), order='F')
+    error=0
+    variation=0
+    for mask in range(8):
+        px=(mask&1>0)*(sz[0]-1)
+        py=(mask&2>0)*(sz[1]-1)
+        pz=(mask&4>0)*(sz[2]-1)
+        #E=np.array(np.random.uniform(0,1,ll), dtype=np.float64).reshape(sz, order='F')
+        E=np.array(range(ll), dtype=np.float64).reshape(sz, order='F')
+        L=2*np.array(range(ll), dtype=np.float64).reshape(sz, order='F')
+        Value_block_cpp(E, L, px, py, pz, average, 1)
+        EE=np.array(range(ll), dtype=np.float64).reshape(sz, order='F')
+        #EE=E.copy()
+        LL=2*np.array(range(ll), dtype=np.float64).reshape(sz, order='F')
+        variation+=(E-EE).std()
+        variation+=(L-LL).std()
+        _value_block(EE, LL, px, py, pz, average, 1)
+        error+=(E-EE).std()
+        error+=(L-LL).std()
+    print 'Value_block error: ', error
+
+def testDistance():
+    from aonlm import distance_cpp
+    from aonlm import _distance
+    ima=np.array(np.random.uniform(0,1,125), dtype=np.float64).reshape((5,5,5), order='F')
+    err=0.0
+    for p in np.ndindex(ima.shape):
+        for q in np.ndindex(ima.shape):
+            x,y,z=(p[1], p[0], p[2])
+            nx,ny,nz=(q[1], q[0], q[2])
+            d=_distance(ima, x,y,z, nx,ny,nz, 1)
+            d_import=distance_cpp(ima, x,y,z, nx,ny,nz, 1)
+            err+=(d-d_import)**2
+            print d, d_import
+    print 'distance error: ', err
+
+def testDistance2():
+    from aonlm import distance2_cpp
+    from aonlm import _distance2
+    ima=np.array(np.random.uniform(0,1,125), dtype=np.float64).reshape((5,5,5), order='F')
+    means=np.array(np.random.uniform(0,1,125), dtype=np.float64).reshape((5,5,5), order='F')
+    err=0.0
+    for p in np.ndindex(ima.shape):
+        for q in np.ndindex(ima.shape):
+            x,y,z=(p[1], p[0], p[2])
+            nx,ny,nz=(q[1], q[0], q[2])
+            d=_distance2(ima, means, x,y,z, nx,ny,nz, 1)
+            d_import=distance2_cpp(ima, means, x,y,z, nx,ny,nz, 1)
+            err+=(d-d_import)**2
+            print d, d_import
+    print 'distance error: ', err
 
 if __name__=='__main__':
     test_filters()

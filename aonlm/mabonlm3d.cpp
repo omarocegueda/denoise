@@ -20,6 +20,7 @@
 #include "math.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 /* Multithreading stuff*/
 #ifdef _WIN32
 #include <windows.h>
@@ -408,11 +409,11 @@ Ndims = (2*f+1)*(2*f+1)*(2*f+1);
 average=(double*)malloc(Ndims*sizeof(double));
 
 wmax=0.0;
-
 for(k=ini;k<fin;k+=2)
 for(j=0;j<rows;j+=2)
 for(i=0;i<cols;i+=2)
 { 
+    
   // init  
   for (init=0 ; init < Ndims; init++) average[init]=0.0;	 
   totalweight=0.0;												
@@ -421,6 +422,7 @@ for(i=0;i<cols;i+=2)
   if(ima[k*rc+(j*cols)+i]>0 && (means[k*rc+(j*cols)+i])>epsilon && (variances[k*rc+(j*cols)+i]>epsilon))
   {       		       
        // calculate minimum distance
+        
        for(kk=-v;kk<=v;kk++)
        {
          nk=k+kk;
@@ -429,18 +431,20 @@ for(i=0;i<cols;i+=2)
            nj=j+jj;
 		   for(ii=-v;ii<=v;ii++)
            {
+                    
 			  ni=i+ii;														
 			  if(ii==0 && jj==0 && kk==0) continue; 				
 			  if(ni>=0 && nj>=0 && nk>=0 && ni<cols && nj<rows && nk<slices)
-			  {									
+			  {			
+                    
 				if (ima[nk*rc+(nj*cols)+ni]>0 && (means[nk*(rc)+(nj*cols)+ni])> epsilon && (variances[nk*rc+(nj*cols)+ni]>epsilon))
 				{				
+                        
 				  t1 = (means[k*rc+(j*cols)+i])/(means[nk*rc+(nj*cols)+ni]);  
                   t1i= (globalMax-means[k*(rc)+(j*cols)+i])/(globalMax-means[nk*(rc)+(nj*cols)+ni]);  
 				  t2 = (variances[k*rc+(j*cols)+i])/(variances[nk*rc+(nj*cols)+ni]);
-	
 				  if( (t1>mu1 && t1<(1/mu1)) || (t1i>mu1 && t1i<(1/mu1)) && t2>var1 && t2<(1/var1))
-				  {                 										
+				  {   
 					d=distance2(ima,means,i,j,k,ni,nj,nk,f,cols,rows,slices);
                     if(d<distanciaminima) distanciaminima=d;
                   }
@@ -450,7 +454,6 @@ for(i=0;i<cols;i+=2)
           }
         }                
         if(distanciaminima==0) distanciaminima=1; 
-         
         // rician correction
         if(rician)
         {
@@ -520,7 +523,7 @@ for(i=0;i<cols;i+=2)
 		Value_block(Estimate,Label,i,j,k,f,average,totalweight,cols,rows,slices);				
 	}
     else 
-    {           
+    {      
       wmax=1.0;  
 	  Average_block(ima,i,j,k,f,average,wmax,cols,rows,slices, rician);	
       totalweight = totalweight + wmax;
@@ -779,10 +782,8 @@ for (i=0; i<Nthreads; i++)
 }*/
 
 #endif
-
 free(ThreadArgs); 
 free(ThreadList);
-
 if(r)
 {
   r=5;
@@ -834,7 +835,6 @@ free(average);
 if(r){
     free(bias);
 }
-
 return;
 
 }
